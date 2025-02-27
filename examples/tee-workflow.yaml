@@ -1,0 +1,62 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: tee-task-scheduling-
+  namespace: argo
+spec:
+  entrypoint: tee-workflow
+  volumeClaimTemplates:
+  - metadata:
+      name: workdir
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 1Gi
+  templates:
+  - name: tee-workflow
+    steps:
+    - - name: dummy-task-1
+        template: dummy-task-1
+    - - name: tee-task
+        template: tee-task
+    - - name: dummy-task-2
+        template: dummy-task-2
+
+  - name: dummy-task-1
+    container:
+      image: minio/mc
+      command: [sh, -c]
+      args: [
+        "mc alias set storage http://192.168.122.251:30771 admin password && \
+        mc cp storage/pipelinebucket/test-app.trustops.nix /tmp/vol/test-app.trustops.nix"
+      ]
+      volumeMounts:
+      - name: workdir
+        mountPath: /tmp/vol
+
+  - name: tee-task
+    # If your system does not have TEE capabilities, you can fall back to a non-TEE Kata VM runtime (e.g. `kata-qemu`). Else, use `kata-qemu-tdx` for Intel TDX support.
+    podSpecPatch: '{"runtimeClassName":"kata-qemu"}'
+    container:
+      image: nixos/nix:latest
+      command: [sh, -c]
+      args: [
+        "nix-shell /tmp/vol/test-app.trustops.nix && \
+        mkdir -p /tmp/vol/{{workflow.name}} && \
+        chmod -R 777 /tmp/vol/{{workflow.name}} && \        
+        cp /repo/signatures.zip /tmp/vol/{{workflow.name}}/signatures.zip"
+      ]
+      volumeMounts:
+      - name: workdir
+        mountPath: /tmp/vol
+    outputs:
+      artifacts:
+        - name: signatures
+          path: /tmp/vol/{{workflow.name}}/signatures.zip
+  
+  - name: dummy-task-2
+    container:
+      image: alpine:latest
+      command: [echo]
+      args: ["{{workflow.name}}"]

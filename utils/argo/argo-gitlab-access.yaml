@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gitlab-access-token
+  namespace: argo-events
+type: Opaque
+stringData:
+  token: vgDjwdeiSBBysXGP5Rnd
+  

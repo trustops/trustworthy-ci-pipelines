@@ -1,0 +1,19 @@
+# The following machines will be bootstrapped a k3s cluster
+# The first machine will become a master node and the others will become worker nodes
+# Modify k3sup.py to change this behavior
+
+# Master Node
+vm1:
+ image: ubuntu2404
+ numcpus: 4
+ memory: 4096
+ disks:
+  - size: 20
+
+# Worker Nodes (add more if needed)
+vm2:
+ image: ubuntu2404
+ numcpus: 4
+ memory: 4096
+ disks:
+  - size: 20

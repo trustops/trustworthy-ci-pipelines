@@ -1,0 +1,9 @@
+env/
+kubeconfig
+utils/vms_info.json
+utils/kcli_plan.yml
+config.json
+repo/
+config.json.sig
+examples/secrets.yaml
+storage/

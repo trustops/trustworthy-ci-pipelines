@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: argo-nodeport
+  namespace: argo-events
+spec:
+  ports:
+  - name: webhook-events
+    port: 12000
+    targetPort: 12000
+    protocol: TCP
+    nodePort: 30773
+
+  selector:
+    app: argo-events-webhook-lb
+  type: LoadBalancer

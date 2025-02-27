@@ -1,0 +1,78 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: client-sensor
+  namespace: argo-events
+spec:
+  dependencies:
+    - name: client-source
+      eventSourceName: gitlab
+      eventName: example
+  triggers:
+    - template:
+        name: argo-workflow-trigger
+        argoWorkflow:
+          operation: submit
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: tee-task-scheduling-
+                namespace: argo
+              spec:
+                entrypoint: tee-workflow
+                volumeClaimTemplates:
+                - metadata:
+                    name: workdir
+                  spec:
+                    accessModes: ["ReadWriteOnce"]
+                    resources:
+                      requests:
+                        storage: 1Gi
+                templates:
+                - name: tee-workflow
+                  steps:
+                  - - name: dummy-task-1
+                      template: dummy-task-1
+                  - - name: tee-task
+                      template: tee-task
+                  - - name: dummy-task-2
+                      template: dummy-task-2
+
+                - name: dummy-task-1
+                  container:
+                    image: minio/mc
+                    command: [sh, -c]
+                    args: [
+                      "mc alias set storage http://192.168.122.25:30771 admin password && \
+                      mc cp storage/pipelinebucket/test-app.trustops.nix /tmp/vol/test-app.trustops.nix"
+                    ]
+                    volumeMounts:
+                    - name: workdir
+                      mountPath: /tmp/vol
+
+                - name: tee-task
+                  podSpecPatch: '{"runtimeClassName":"kata-qemu"}'
+                  container:
+                    image: nixos/nix:latest
+                    command: [sh, -c]
+                    args: [
+                      "nix-shell /tmp/vol/test-app.trustops.nix && \
+                      mkdir -p /tmp/vol/{{workflow.name}} && \
+                      chmod -R 777 /tmp/vol/{{workflow.name}} && \        
+                      zip /tmp/vol/{{workflow.name}}/signature_files.zip /repo/signature.*"
+                    ]
+                    volumeMounts:
+                    - name: workdir
+                      mountPath: /tmp/vol
+                  outputs:
+                    artifacts:
+                      - name: signature-zip
+                        path: /tmp/vol/{{workflow.name}}/signature_files.zip
+                
+                - name: dummy-task-2
+                  container:
+                    image: alpine:latest
+                    command: [echo]
+                    args: ["{{workflow.name}}"]
